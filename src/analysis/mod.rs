@@ -12,6 +12,7 @@ use memflow::prelude::v1::*;
 mod buttons;
 mod interfaces;
 mod offsets;
+mod patterns;
 mod schemas;
 mod signatures;
 
@@ -95,4 +96,4 @@ where
             T::default()
         }
     }
-        }
+    }
