@@ -75,4 +75,4 @@ pub fn all_patterns() -> Vec<PatternSet> {
             patterns: &SOUNDSYSTEM_PATTERNS,
         },
     ]
-}
+    }
