@@ -100,4 +100,4 @@ impl CodeWriter for SignatureMap {
             })
         })
     }
-                               }
+}
