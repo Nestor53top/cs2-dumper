@@ -3,15 +3,11 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Result, anyhow};
-
 use chrono::{DateTime, Utc};
-
 use memflow::prelude::v1::*;
-
 use serde_json::json;
 
 use formatter::Formatter;
-
 use crate::analysis::*;
 
 mod buttons;
@@ -19,12 +15,14 @@ mod formatter;
 mod interfaces;
 mod offsets;
 mod schemas;
+mod signatures;
 
 enum Item<'a> {
     Buttons(&'a ButtonMap),
     Interfaces(&'a InterfaceMap),
     Offsets(&'a OffsetMap),
     Schemas(&'a SchemaMap),
+    Signatures(&'a SignatureMap),
 }
 
 impl<'a> Item<'a> {
@@ -55,6 +53,7 @@ impl<'a> CodeWriter for Item<'a> {
             Item::Interfaces(ifaces) => ifaces.write_cs(fmt),
             Item::Offsets(offsets) => offsets.write_cs(fmt),
             Item::Schemas(schemas) => schemas.write_cs(fmt),
+            Item::Signatures(signatures) => signatures.write_cs(fmt),
         }
     }
 
@@ -64,6 +63,7 @@ impl<'a> CodeWriter for Item<'a> {
             Item::Interfaces(ifaces) => ifaces.write_hpp(fmt),
             Item::Offsets(offsets) => offsets.write_hpp(fmt),
             Item::Schemas(schemas) => schemas.write_hpp(fmt),
+            Item::Signatures(signatures) => signatures.write_hpp(fmt),
         }
     }
 
@@ -73,6 +73,7 @@ impl<'a> CodeWriter for Item<'a> {
             Item::Interfaces(ifaces) => ifaces.write_json(fmt),
             Item::Offsets(offsets) => offsets.write_json(fmt),
             Item::Schemas(schemas) => schemas.write_json(fmt),
+            Item::Signatures(signatures) => signatures.write_json(fmt),
         }
     }
 
@@ -82,6 +83,7 @@ impl<'a> CodeWriter for Item<'a> {
             Item::Interfaces(ifaces) => ifaces.write_rs(fmt),
             Item::Offsets(offsets) => offsets.write_rs(fmt),
             Item::Schemas(schemas) => schemas.write_rs(fmt),
+            Item::Signatures(signatures) => signatures.write_rs(fmt),
         }
     }
 
@@ -91,6 +93,7 @@ impl<'a> CodeWriter for Item<'a> {
             Item::Interfaces(ifaces) => ifaces.write_zig(fmt),
             Item::Offsets(offsets) => offsets.write_zig(fmt),
             Item::Schemas(schemas) => schemas.write_zig(fmt),
+            Item::Signatures(signatures) => signatures.write_zig(fmt),
         }
     }
 }
@@ -126,6 +129,7 @@ impl<'a> Output<'a> {
             ("buttons", Item::Buttons(&self.result.buttons)),
             ("interfaces", Item::Interfaces(&self.result.interfaces)),
             ("offsets", Item::Offsets(&self.result.offsets)),
+            ("signatures", Item::Signatures(&self.result.signatures)),
         ];
 
         for (file_name, item) in &items {
@@ -148,7 +152,6 @@ impl<'a> Output<'a> {
             .find_map(|(module_name, offsets)| {
                 let module = process.module_by_name(module_name).ok()?;
                 let offset = offsets.iter().find(|(name, _)| *name == "dwBuildNumber")?.1;
-
                 process.read::<u32>(module.base + offset).data_part().ok()
             })
             .ok_or(anyhow!("failed to read build number"))?;
@@ -185,7 +188,6 @@ impl<'a> Output<'a> {
     fn dump_schemas(&self) -> Result<()> {
         for (module_name, (classes, enums)) in &self.result.schemas {
             let map = SchemaMap::from([(module_name.clone(), (classes.clone(), enums.clone()))]);
-
             self.dump_item(&slugify(&module_name), &Item::Schemas(&map))?;
         }
 
@@ -211,7 +213,6 @@ fn zig_ident(input: &str) -> String {
         input.to_string()
     } else {
         let escaped = input.replace('\\', "\\\\").replace('"', "\\\"");
-
         format!("@\"{}\"", escaped)
     }
 }
@@ -285,4 +286,4 @@ fn is_zig_keyword(input: &str) -> bool {
             | "volatile"
             | "while"
     )
-}
+        }
