@@ -47,9 +47,13 @@ impl ProcessSelector {
                 if let Ok(os) = memflow_native::create_os(&OsArgs::default(), LibArc::default()) {
                     if let Ok(list) = os.process_info_list() {
                         for info in list {
+                            // Правильно извлекаем данные из memflow::os::ProcessInfo
+                            let name_str = info.name.to_string();
+                            let pid_val = info.pid.0 as u32;
+
                             proc_list.push(ProcessInfo {
-                                name: info.name.to_string(),
-                                pid: info.pid.0 as u32,
+                                name: name_str,
+                                pid: pid_val,
                             });
                         }
                     }
@@ -66,11 +70,10 @@ impl ProcessSelector {
                     .output()
                 {
                     let stdout = String::from_utf8_lossy(&output.stdout);
-                    for line in stdout.lines() {
+                    for line in stdout.lines().skip(1) {
                         let parts: Vec<&str> = line.split_whitespace().collect();
                         if parts.len() > 10 {
-                            let pid_str = parts[1];
-                            if let Ok(pid) = pid_str.parse::<u32>() {
+                            if let Ok(pid) = parts[1].parse::<u32>() {
                                 let name = parts[10..].join(" ");
                                 proc_list.push(ProcessInfo {
                                     name,
@@ -176,4 +179,4 @@ impl ProcessSelector {
     pub fn get_selected(&self) -> Option<String> {
         self.selected_process.clone()
     }
-                }
+                            }
