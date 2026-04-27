@@ -10,6 +10,7 @@ license = "MIT"
 [dependencies]
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.6", features = ["derive"] }
 heck = "0.5"
 log = "0.4"
 memflow = "0.2"
@@ -17,13 +18,15 @@ pelite = "0.10"
 phf = { version = "0.13", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+simplelog = "0.12"
 
 # GUI dependencies
 eframe = "0.30"
 egui = "0.30"
 egui_extras = "0.30"
-rfd = "0.15"
+image = { version = "0.25", default-features = false, features = ["png"] }
 parking_lot = "0.12"
+env_logger = "0.11"
 
 [target.'cfg(windows)'.dependencies]
 memflow-native = { git = "https://github.com/memflow/memflow-native" }
