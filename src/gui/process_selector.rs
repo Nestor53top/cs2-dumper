@@ -3,7 +3,6 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use std::thread;
 
-// НАШ локальный тип
 #[derive(Clone, Debug)]
 pub struct MyProcessInfo {
     pub name: String,
@@ -45,10 +44,10 @@ impl ProcessSelector {
             {
                 use memflow::prelude::v1::*;
 
-                if let Ok(os) = memflow_native::create_os(&OsArgs::default(), LibArc::default()) {
+                // ВНИМАНИЕ: добавляем `mut` для os
+                if let Ok(mut os) = memflow_native::create_os(&OsArgs::default(), LibArc::default()) {
                     if let Ok(list) = os.process_info_list() {
                         for info in list {
-                            // Конвертируем правильно
                             let name_str = info.name.to_string();
                             let pid_val: u32 = info.pid.into();
                             
@@ -143,6 +142,8 @@ impl ProcessSelector {
                 });
             } else if is_loading {
                 ui.label("Loading process list...");
+            } else {
+                ui.label("No processes found. Click Refresh.");
             }
 
             ui.add_space(10.0);
