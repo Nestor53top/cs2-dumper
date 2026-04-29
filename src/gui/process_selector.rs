@@ -3,14 +3,15 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use std::thread;
 
+// НАШ локальный тип
 #[derive(Clone, Debug)]
-pub struct ProcessInfo {
+pub struct MyProcessInfo {
     pub name: String,
     pub pid: u32,
 }
 
 pub struct ProcessSelector {
-    processes: Arc<Mutex<Vec<ProcessInfo>>>,
+    processes: Arc<Mutex<Vec<MyProcessInfo>>>,
     selected_process: Option<String>,
     search_query: String,
     loading: Arc<Mutex<bool>>,
@@ -18,14 +19,12 @@ pub struct ProcessSelector {
 
 impl ProcessSelector {
     pub fn new() -> Self {
-        let selector = Self {
+        Self {
             processes: Arc::new(Mutex::new(Vec::new())),
             selected_process: None,
             search_query: String::new(),
             loading: Arc::new(Mutex::new(false)),
-        };
-
-        selector
+        }
     }
 
     pub fn refresh_processes(&mut self) {
@@ -40,7 +39,7 @@ impl ProcessSelector {
         let loading_flag = self.loading.clone();
 
         thread::spawn(move || {
-            let mut proc_list: Vec<ProcessInfo> = Vec::new();
+            let mut proc_list: Vec<MyProcessInfo> = Vec::new();
 
             #[cfg(windows)]
             {
@@ -49,13 +48,11 @@ impl ProcessSelector {
                 if let Ok(os) = memflow_native::create_os(&OsArgs::default(), LibArc::default()) {
                     if let Ok(list) = os.process_info_list() {
                         for info in list {
-                            // Конвертируем ReprCString в String
+                            // Конвертируем правильно
                             let name_str = info.name.to_string();
-                            // Конвертируем Pid в u32
                             let pid_val: u32 = info.pid.into();
                             
-                            // Используем наш собственный ProcessInfo, а не memflow::os::ProcessInfo
-                            proc_list.push(ProcessInfo {
+                            proc_list.push(MyProcessInfo {
                                 name: name_str,
                                 pid: pid_val,
                             });
@@ -68,17 +65,14 @@ impl ProcessSelector {
             {
                 use std::process::Command;
 
-                if let Ok(output) = Command::new("ps")
-                    .args(&["aux"])
-                    .output()
-                {
+                if let Ok(output) = Command::new("ps").args(&["aux"]).output() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     for line in stdout.lines().skip(1) {
                         let parts: Vec<&str> = line.split_whitespace().collect();
                         if parts.len() > 10 {
                             if let Ok(pid) = parts[1].parse::<u32>() {
                                 let name = parts[10..].join(" ");
-                                proc_list.push(ProcessInfo { name, pid });
+                                proc_list.push(MyProcessInfo { name, pid });
                             }
                         }
                     }
@@ -87,8 +81,6 @@ impl ProcessSelector {
 
             proc_list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
             *processes.lock() = proc_list;
-            
-            // Загрузка завершена
             *loading_flag.lock() = false;
         });
     }
@@ -98,13 +90,13 @@ impl ProcessSelector {
             ui.add_space(10.0);
 
             ui.horizontal(|ui| {
-                ui.label(super::theme::subheading("Process Selection"));
+                ui.label("Process Selection");
                 ui.add_space(10.0);
 
                 let is_loading = *self.loading.lock();
                 if is_loading {
-                    ui.colored_label(egui::Color32::from_rgb(255, 200, 100), "⏳ Loading processes...");
-                } else if ui.button("🔄 Refresh").clicked() {
+                    ui.label("Loading processes...");
+                } else if ui.button("Refresh").clicked() {
                     self.refresh_processes();
                 }
             });
@@ -112,7 +104,7 @@ impl ProcessSelector {
             ui.add_space(10.0);
 
             ui.horizontal(|ui| {
-                ui.label("🔍 Search:");
+                ui.label("Search:");
                 ui.text_edit_singleline(&mut self.search_query);
             });
 
@@ -124,7 +116,6 @@ impl ProcessSelector {
             if !is_loading && !processes.is_empty() {
                 let cs2_exists = processes.iter().any(|p| p.name.to_lowercase().contains("cs2"));
 
-                // Автоматически выбираем CS2 если он найден и ничего не выбрано
                 if cs2_exists && self.selected_process.is_none() {
                     if let Some(cs2_proc) = processes.iter().find(|p| p.name.to_lowercase().contains("cs2")) {
                         self.selected_process = Some(cs2_proc.name.clone());
@@ -132,56 +123,32 @@ impl ProcessSelector {
                 }
 
                 if !cs2_exists {
-                    ui.colored_label(
-                        egui::Color32::from_rgb(255, 200, 100),
-                        "⚠ cs2.exe not found - please select process manually",
-                    );
-                    ui.add_space(5.0);
+                    ui.label("⚠ cs2.exe not found - please select process manually");
                 }
 
-                egui::ScrollArea::vertical()
-                    .max_height(300.0)
-                    .show(ui, |ui| {
-                        for proc in processes.iter() {
-                            if !self.search_query.is_empty()
-                                && !proc
-                                    .name
-                                    .to_lowercase()
-                                    .contains(&self.search_query.to_lowercase())
-                            {
-                                continue;
-                            }
-
-                            let is_selected = self
-                                .selected_process
-                                .as_ref()
-                                .map(|s| s == &proc.name)
-                                .unwrap_or(false);
-
-                            if ui
-                                .selectable_label(
-                                    is_selected,
-                                    format!("{} (PID: {})", proc.name, proc.pid),
-                                )
-                                .clicked()
-                            {
-                                self.selected_process = Some(proc.name.clone());
-                            }
+                egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                    for proc in processes.iter() {
+                        if !self.search_query.is_empty()
+                            && !proc.name.to_lowercase().contains(&self.search_query.to_lowercase())
+                        {
+                            continue;
                         }
-                    });
+
+                        let is_selected = self.selected_process.as_ref().map(|s| s == &proc.name).unwrap_or(false);
+
+                        if ui.selectable_label(is_selected, format!("{} (PID: {})", proc.name, proc.pid)).clicked() {
+                            self.selected_process = Some(proc.name.clone());
+                        }
+                    }
+                });
             } else if is_loading {
-                ui.colored_label(egui::Color32::from_rgb(200, 200, 200), "Loading process list...");
-            } else {
-                ui.colored_label(egui::Color32::from_rgb(255, 100, 100), "No processes found");
+                ui.label("Loading process list...");
             }
 
             ui.add_space(10.0);
 
             if let Some(selected) = &self.selected_process {
-                ui.label(super::theme::success_text(&format!(
-                    "✓ Selected: {}",
-                    selected
-                )));
+                ui.label(format!("✓ Selected: {}", selected));
             }
         });
 
