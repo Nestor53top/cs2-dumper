@@ -18,14 +18,13 @@ pub struct ProcessSelector {
 
 impl ProcessSelector {
     pub fn new() -> Self {
-        let mut selector = Self {
+        let selector = Self {
             processes: Arc::new(Mutex::new(Vec::new())),
             selected_process: None,
             search_query: String::new(),
             loading: Arc::new(Mutex::new(false)),
         };
 
-        selector.refresh_processes();
         selector
     }
 
@@ -41,7 +40,7 @@ impl ProcessSelector {
         let loading_flag = self.loading.clone();
 
         thread::spawn(move || {
-            let mut proc_list = Vec::new();
+            let mut proc_list: Vec<ProcessInfo> = Vec::new();
 
             #[cfg(windows)]
             {
@@ -55,6 +54,7 @@ impl ProcessSelector {
                             // Конвертируем Pid в u32
                             let pid_val: u32 = info.pid.into();
                             
+                            // Используем наш собственный ProcessInfo, а не memflow::os::ProcessInfo
                             proc_list.push(ProcessInfo {
                                 name: name_str,
                                 pid: pid_val,
@@ -121,16 +121,17 @@ impl ProcessSelector {
             let is_loading = *self.loading.lock();
             let processes = self.processes.lock();
             
-            if !is_loading {
+            if !is_loading && !processes.is_empty() {
                 let cs2_exists = processes.iter().any(|p| p.name.to_lowercase().contains("cs2"));
 
+                // Автоматически выбираем CS2 если он найден и ничего не выбрано
                 if cs2_exists && self.selected_process.is_none() {
                     if let Some(cs2_proc) = processes.iter().find(|p| p.name.to_lowercase().contains("cs2")) {
                         self.selected_process = Some(cs2_proc.name.clone());
                     }
                 }
 
-                if !cs2_exists && !processes.is_empty() {
+                if !cs2_exists {
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 200, 100),
                         "⚠ cs2.exe not found - please select process manually",
@@ -168,8 +169,10 @@ impl ProcessSelector {
                             }
                         }
                     });
-            } else if processes.is_empty() {
+            } else if is_loading {
                 ui.colored_label(egui::Color32::from_rgb(200, 200, 200), "Loading process list...");
+            } else {
+                ui.colored_label(egui::Color32::from_rgb(255, 100, 100), "No processes found");
             }
 
             ui.add_space(10.0);
