@@ -13,7 +13,7 @@ pub struct ProcessSelector {
     processes: Arc<Mutex<Vec<ProcessInfo>>>,
     selected_process: Option<String>,
     search_query: String,
-    loading: Arc<Mutex<bool>>, // Изменено на Arc<Mutex<bool>>
+    loading: Arc<Mutex<bool>>,
 }
 
 impl ProcessSelector {
@@ -30,13 +30,12 @@ impl ProcessSelector {
     }
 
     pub fn refresh_processes(&mut self) {
-        // Проверяем, не загружается ли уже
         let mut loading = self.loading.lock();
         if *loading {
             return;
         }
         *loading = true;
-        drop(loading); // Освобождаем мьютекс перед запуском потока
+        drop(loading);
 
         let processes = self.processes.clone();
         let loading_flag = self.loading.clone();
@@ -51,9 +50,11 @@ impl ProcessSelector {
                 if let Ok(os) = memflow_native::create_os(&OsArgs::default(), LibArc::default()) {
                     if let Ok(list) = os.process_info_list() {
                         for info in list {
+                            // Конвертируем ReprCString в String
                             let name_str = info.name.to_string();
-                            let pid_val = info.pid.0;
-
+                            // Конвертируем Pid в u32
+                            let pid_val: u32 = info.pid.into();
+                            
                             proc_list.push(ProcessInfo {
                                 name: name_str,
                                 pid: pid_val,
@@ -87,12 +88,9 @@ impl ProcessSelector {
             proc_list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
             *processes.lock() = proc_list;
             
-            // Загрузка завершена, сбрасываем флаг
+            // Загрузка завершена
             *loading_flag.lock() = false;
         });
-
-        // Не устанавливаем self.loading = false здесь!
-        // Флаг сбросится только когда поток завершится
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui) -> Option<String> {
@@ -103,7 +101,6 @@ impl ProcessSelector {
                 ui.label(super::theme::subheading("Process Selection"));
                 ui.add_space(10.0);
 
-                // Показываем индикатор загрузки вместо кнопки, если процессы загружаются
                 let is_loading = *self.loading.lock();
                 if is_loading {
                     ui.colored_label(egui::Color32::from_rgb(255, 200, 100), "⏳ Loading processes...");
@@ -121,7 +118,6 @@ impl ProcessSelector {
 
             ui.add_space(10.0);
 
-            // Проверяем, загружены ли процессы
             let is_loading = *self.loading.lock();
             let processes = self.processes.lock();
             
@@ -134,7 +130,7 @@ impl ProcessSelector {
                     }
                 }
 
-                if !cs2_exists {
+                if !cs2_exists && !processes.is_empty() {
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 200, 100),
                         "⚠ cs2.exe not found - please select process manually",
@@ -172,7 +168,7 @@ impl ProcessSelector {
                             }
                         }
                     });
-            } else {
+            } else if processes.is_empty() {
                 ui.colored_label(egui::Color32::from_rgb(200, 200, 200), "Loading process list...");
             }
 
